@@ -1,16 +1,31 @@
-
 const Block = require('./Block');
 const Transaction = require('./Transaction');
 const { isChainValid } = require('./Validation');
+const { saveBlockchain, loadBlockchain } = require('../../utils/persistence');
 const fetch = require('node-fetch');
+const config = require('../../config/blockchain');
 
 class Blockchain {
   constructor() {
-    this.chain = [this.createGenesisBlock()];
-    this.difficulty = 2;
-    this.pendingTransactions = [];
-    this.miningReward = 100;
-    this.nodes = [];
+    // Try to load existing blockchain
+    const savedData = loadBlockchain();
+    if (savedData) {
+      this.chain = savedData.chain || [this.createGenesisBlock()];
+      this.pendingTransactions = savedData.pendingTransactions || [];
+      this.nodes = savedData.nodes || [];
+      this.difficulty = savedData.difficulty || config.DIFFICULTY;
+      this.miningReward = savedData.miningReward || config.MINING_REWARD;
+    } else {
+      this.chain = [this.createGenesisBlock()];
+      this.difficulty = config.DIFFICULTY;
+      this.pendingTransactions = [];
+      this.miningReward = config.MINING_REWARD;
+      this.nodes = [];
+    }
+    
+    // Use configuration limits
+    this.maxPendingTransactions = config.MAX_PENDING_TRANSACTIONS;
+    this.maxBlockSize = config.MAX_BLOCK_SIZE;
   }
 
   /**
@@ -55,21 +70,26 @@ class Blockchain {
   // }
 
   minePendingTransactions(miningRewardAddress) {
-    if (this.pendingTransactions.length > 0) {
-      const txsMiningReward = new Transaction(null, miningRewardAddress, this.miningReward);
-      this.pendingTransactions.push(txsMiningReward);
-
-      const block = new Block(Date.now(), this.pendingTransactions, this.getLatestBlock().hash);
-      block.mineBlock(this.difficulty);
-
-      console.log('Block successfully mined!');
-      this.chain.push(block);
-
-      this.pendingTransactions = [];
-      return 'Block successfully mined!'
-    } else {
-      return 'nothing to mine'
+    if (this.pendingTransactions.length === 0) {
+      return 'No pending transactions to mine';
     }
+
+    // Limit transactions per block
+    const transactionsToMine = this.pendingTransactions.splice(0, this.maxBlockSize);
+
+    const txsMiningReward = new Transaction(null, miningRewardAddress, this.miningReward);
+    transactionsToMine.push(txsMiningReward);
+
+    const block = new Block(Date.now(), transactionsToMine, this.getLatestBlock().hash);
+    block.mineBlock(this.difficulty);
+
+    console.log('Block successfully mined!');
+    this.chain.push(block);
+
+    // Auto-save after mining
+    saveBlockchain(this);
+
+    return 'Block successfully mined!';
   }
 
   addTransaction(txs) {
@@ -77,12 +97,45 @@ class Blockchain {
       throw new Error('Transaction must include from and to address');
     }
 
-    // Verify the transactiion
+    // Verify the transaction
     if (!txs.isValid()) {
       throw new Error('Cannot add invalid transaction to chain');
     }
 
-    this.pendingTransactions.push(txs)
+    // Prevent duplicate transactions
+    const duplicate = this.pendingTransactions.find(pendingTx => 
+      pendingTx.fromAddress === txs.fromAddress &&
+      pendingTx.toAddress === txs.toAddress &&
+      pendingTx.amount === txs.amount &&
+      Math.abs(pendingTx.timestamp - txs.timestamp) < 1000 // Within 1 second
+    );
+
+    if (duplicate) {
+      throw new Error('Duplicate transaction detected');
+    }
+
+    // Limit pending transactions
+    if (this.pendingTransactions.length >= this.maxPendingTransactions) {
+      throw new Error('Too many pending transactions. Try again later.');
+    }
+
+    this.pendingTransactions.push(txs);
+    
+    // Auto-save after adding transaction
+    saveBlockchain(this);
+  }
+
+  // Add transaction fee calculation
+  calculateTransactionFee(amount) {
+    return Math.max(0.01, amount * 0.001); // Minimum 0.01 or 0.1% of amount
+  }
+
+  addNodes(address) {
+    if (!this.nodes.includes(address)) {
+      this.nodes.push(address);
+      // Auto-save after adding node
+      saveBlockchain(this);
+    }
   }
 
   isChainValid() {
@@ -143,8 +196,9 @@ class Blockchain {
 
   async synChain(){
     if (this.nodes.length > 0) {
-      console.log('calling ...')
-      await setInterval( () => this.replaceChain, 5000);
+      console.log('Starting chain synchronization...')
+      // Removed setInterval to prevent infinite loops
+      await this.replaceChain();
     }
   }
 
@@ -155,30 +209,44 @@ class Blockchain {
 
     if (network.length > 0) {
       for (let i = 0; i < network.length; i++) {
-        console.log(network[i])
-        const response = await fetch(`${network[i]}/api/chainList`);
-        const data = await response.json();
-
-        if (response.status == 200){
-          const length = data.length
-          const chainList = data.blockchain
-          console.log('chain length : ',length)
-          if (length > maxLength && isChainValid(chainList)){
-            maxLength = length
-            longestChain = chainList
-            console.log('succcess ',length)
-          }else{
-            console.log('no longest chain')
+        try {
+          console.log(`Checking node: ${network[i]}`)
+          const response = await fetch(`${network[i]}/api/chainList`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 5000
+          });
+          
+          if (response.status === 200) {
+            const data = await response.json();
+            const length = data.length
+            const chainList = data.blockchain
+            
+            console.log(`Chain length from node ${network[i]}: ${length}`)
+            if (length > maxLength && isChainValid(chainList)){
+              maxLength = length
+              longestChain = chainList
+              console.log(`Found longer valid chain with length: ${length}`)
+            } else if (length > maxLength) {
+              console.log(`Chain from node ${network[i]} is longer but invalid`)
+            }
+          } else {
+            console.log(`Node ${network[i]} returned status: ${response.status}`)
           }
+        } catch (error) {
+          console.log(`Failed to connect to node ${network[i]}: ${error.message}`);
         }
       }
+      
       if (longestChain != null){
         this.chain = longestChain
-        console.log('ok')
-        this.synChain();
+        console.log('Chain successfully replaced with longer valid chain')
+        // Auto-save after chain replacement
+        saveBlockchain(this);
         return 'Chain synchronization completed!'
       }
-    }else{
+      return 'No longer valid chain found'
+    } else {
       return 'Connect to network first!'
     }
   }

@@ -24,3 +24,16 @@ docker-compose.override.yml
 *.sln
 *.sw?
 
+# Blockchain data
+server/data/
+server/secure/
+*.json
+!package.json
+!package-lock.json
+
+# Security files
+*.pem
+*.key
+.private
+.wallet
+

@@ -1,15 +1,1 @@
-Public key:
- ff68c868e2b3a64ed4323071c0b62cb68f44fb92e44b7fbc1c7c0b06ea32b1b9
-Private key
- 2cf2986f33b277f109b9f839442060dbfea9114d6ad7a6bd0301c9a479530a85
-
-Public key:
- 0ef1fdb82ed1e3d532e2e64672d85a70aeafdcb1b0dedbc18f1541af7ef889b0
-Private key
- da2583c8c17c122dc8580dffe3b48351551a932bef6303efbe1d37df45220665
-
-Minor : 
-Public key:
- c77f784ae90259c994211ccdf2daba3e0261b284eaab81833a82cff623c0af9f
-Private key
- 404b712ccdcfffbf97beb5a4b8c6d7a4f89b393cfc8df9fa3a1ceda7bb76f730
+// DELETE THIS FILE - Security risk to store keys in plain text

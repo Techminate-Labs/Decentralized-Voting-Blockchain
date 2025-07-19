@@ -1,7 +1,6 @@
 const crypto = require('crypto');
-
-const EdDSA = require('elliptic').eddsa
-const ec = new EdDSA('ed25519')
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1'); // Changed from ed25519 to match other files
 
 class Transaction {
     constructor(fromAddress, toAddress, amount) {
@@ -38,7 +37,7 @@ class Transaction {
     // Calculate the hash of this transaction, sign it with the key
     // and store it inside the transaction obect
     const hashTxs = this.calculateHash();
-    this.signature = keyPair.sign(hashTxs, 'base64').toHex();
+    this.signature = keyPair.sign(hashTxs, 'base64').toDER('hex'); // Fixed signature format
   }
 
   isValid() {
@@ -53,11 +52,9 @@ class Transaction {
 
     const keyPair = ec.keyFromPublic(this.fromAddress, 'hex');
     const hashTxs = this.calculateHash();
-    // Verify signature
-    console.log(keyPair.verify(hashTxs, this.signature));
+    // Verify signature - fixed verification
     return keyPair.verify(hashTxs, this.signature);
   }
-
 }
 
 module.exports = Transaction;
