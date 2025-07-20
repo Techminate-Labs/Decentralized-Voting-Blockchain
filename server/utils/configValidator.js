@@ -1,7 +1,8 @@
 const logger = require('./logger')
 
 const validateConfig = () => {
-  const requiredEnvVars = ['privateKey', 'minorWallet', 'NODE_ENV', 'PORT']
+  // Only check for basic environment variables, not keys (keys are handled by secureKeyManager)
+  const requiredEnvVars = ['NODE_ENV', 'PORT'];
   const missing = []
   
   requiredEnvVars.forEach(envVar => {
@@ -14,19 +15,7 @@ const validateConfig = () => {
     logger.error(`Missing required environment variables: ${missing.join(', ')}`)
     process.exit(1)
   }
-  
-  // Validate private key format
-  if (process.env.privateKey && !/^[a-fA-F0-9]{64}$/.test(process.env.privateKey)) {
-    logger.error('Private key must be a 64-character hexadecimal string')
-    process.exit(1)
-  }
-  
-  // Validate wallet address format  
-  if (process.env.minorWallet && !/^[a-fA-F0-9]{64,130}$/.test(process.env.minorWallet)) {
-    logger.error('Minor wallet address must be a valid hexadecimal string')
-    process.exit(1)
-  }
-  
+
   // Production-specific validations
   if (process.env.NODE_ENV === 'production') {
     if (!process.env.SECURE_KEY_STORAGE || process.env.SECURE_KEY_STORAGE !== 'true') {
@@ -42,4 +31,21 @@ const validateConfig = () => {
   logger.success('Configuration validation passed')
 }
 
-module.exports = { validateConfig }
+// Function to validate keys after they're generated
+const validateGeneratedKeys = () => {
+  // Validate private key format (after generation)
+  if (process.env.privateKey && !/^[a-fA-F0-9]{64}$/.test(process.env.privateKey)) {
+    logger.error('Generated private key has invalid format')
+    process.exit(1)
+  }
+  
+  // Validate wallet address format (after generation) 
+  if (process.env.minorWallet && !/^[a-fA-F0-9]{64,130}$/.test(process.env.minorWallet)) {
+    logger.error('Generated minor wallet address has invalid format')
+    process.exit(1)
+  }
+  
+  logger.success('Generated keys validation passed')
+}
+
+module.exports = { validateConfig, validateGeneratedKeys }

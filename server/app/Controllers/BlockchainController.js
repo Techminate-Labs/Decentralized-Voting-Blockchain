@@ -85,7 +85,11 @@ const transactionCreate = asyncHandler(
 const minePendingTxs = asyncHandler(
     async (req, res) => {
         if (myChain.pendingTransactions.length === 0) {
-            return res.status(400).json({ error: 'No pending transactions to mine' });
+            return res.status(400).json({ 
+                error: 'No pending transactions to mine',
+                message: 'Create a transaction first, then mine the block',
+                currentPendingTransactions: 0
+            });
         }
 
         const startTime = Date.now()
@@ -111,7 +115,8 @@ const minePendingTxs = asyncHandler(
             message: statusMining,
             chainLength: myChain.chain.length,
             latestBlock: myChain.getLatestBlock(),
-            minerReward: myChain.miningReward
+            minerReward: myChain.miningReward,
+            miningTime: miningTime
         })
     }
 )
