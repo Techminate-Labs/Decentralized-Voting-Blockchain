@@ -1,0 +1,21 @@
+
+> blockchain@1.0.0 start
+> node server/server.js
+
+[32m[SUCCESS] 2025-08-30T16:19:57.024Z - Configuration validation passed[39m
+[34m[INFO] 2025-08-30T16:19:57.025Z - Secure keys loaded from storage[39m
+[32m[SUCCESS] 2025-08-30T16:19:57.025Z - Secure key management initialized[39m
+Blockchain loaded from disk
+[31m[ERROR] 2025-08-30T16:19:57.064Z - Uncaught Exception:[39m
+[31mError: listen EADDRINUSE: address already in use :::8003
+    at Server.setupListenHandle [as _listen2] (node:net:1937:16)
+    at listenInCluster (node:net:1994:12)
+    at Server.listen (node:net:2099:7)
+    at Object.<anonymous> (H:\Blockchain\Node 1\server\server.js:96:8)
+    at Module._compile (node:internal/modules/cjs/loader:1562:14)
+    at Object..js (node:internal/modules/cjs/loader:1699:10)
+    at Module.load (node:internal/modules/cjs/loader:1313:32)
+    at Function._load (node:internal/modules/cjs/loader:1123:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)[39m
+[32m[SUCCESS] 2025-08-30T16:19:58.068Z - Blockchain and WebSocket integration completed[39m

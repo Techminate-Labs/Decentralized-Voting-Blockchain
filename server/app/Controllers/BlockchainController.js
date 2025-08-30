@@ -153,6 +153,53 @@ const chainSync = asyncHandler(
     }
 )
 
+// Bootstrap mining function - allows initial mining for first rewards
+const bootstrapMine = asyncHandler(
+    async (req, res) => {
+        // Only allow if chain has only genesis block (bootstrap scenario)
+        if (myChain.chain.length > 1) {
+            return res.status(400).json({
+                error: 'Bootstrap mining only allowed on new chains',
+                message: 'Use regular mining after first block',
+                currentChainLength: myChain.chain.length
+            });
+        }
+
+        // Create a dummy transaction to enable mining
+        const dummyTx = new Transaction(null, process.env.minorWallet, 0);
+        myChain.pendingTransactions.push(dummyTx);
+
+        const startTime = Date.now();
+        const statusMining = myChain.minePendingTransactions(process.env.minorWallet);
+        const miningTime = Date.now() - startTime;
+
+        // Security: Audit bootstrap mining
+        auditLogger.logBlockMined(myChain.getLatestBlock(), req.ip);
+        
+        // Security: Validate chain integrity after mining
+        integrityMonitor.validateChainIntegrity(myChain);
+        
+        // Record metrics
+        const metrics = require('../../utils/metrics');
+        metrics.recordMining(miningTime);
+        metrics.recordTransaction(); // Count dummy transaction
+        
+        // WebSocket notification
+        if (wsHandler) {
+            wsHandler.broadcastBlockMined(myChain.getLatestBlock());
+        }
+
+        console.log(`Bootstrap mining completed in ${miningTime}ms`);
+        res.status(200).json({
+            message: 'Bootstrap mining successful! You now have initial funds.',
+            status: statusMining,
+            miningTime,
+            newBalance: myChain.getBalanceOfAddress(process.env.minorWallet),
+            blockHeight: myChain.chain.length,
+            rewardReceived: myChain.miningReward
+        });
+    })
+
 
 // Function to set WebSocket handler reference
 const setWebSocketHandler = (handler) => {
@@ -162,6 +209,7 @@ const setWebSocketHandler = (handler) => {
 module.exports = {
     transactionCreate,
     minePendingTxs,
+    bootstrapMine,
     chainList,
     chainValidation,
     nodeConnection,

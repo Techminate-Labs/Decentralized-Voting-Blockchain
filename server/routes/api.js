@@ -11,6 +11,7 @@ const {
     chainList,
     transactionCreate,
     minePendingTxs,
+    bootstrapMine,
     chainValidation,
     nodeConnection,
     chainSync
@@ -50,6 +51,7 @@ router.get('/chainSync', chainSync)
 // Rate-limited endpoints with enhanced validation
 router.post('/transactionCreate', rateLimit(5, 60000), enhancedTransactionValidation, transactionCreate)
 router.get('/minePendingTxs', rateLimit(2, 60000), minePendingTxs)
+router.get('/bootstrapMine', rateLimit(1, 300000), bootstrapMine) // 5 minute cooldown for bootstrap
 router.post('/nodeConnection', rateLimit(3, 60000), validateNodeConnection, nodeConnection)
 
 // Statistics endpoints
