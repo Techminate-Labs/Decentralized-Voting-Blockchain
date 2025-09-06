@@ -34,15 +34,21 @@ const validateConfig = () => {
 // Function to validate keys after they're generated
 const validateGeneratedKeys = () => {
   // Validate private key format (after generation)
-  if (process.env.privateKey && !/^[a-fA-F0-9]{64}$/.test(process.env.privateKey)) {
-    logger.error('Generated private key has invalid format')
-    process.exit(1)
+  if (process.env.privateKey) {
+    // Support both Ed25519 and secp256k1 private keys (both 64 hex chars)
+    if (!/^[a-fA-F0-9]{64}$/.test(process.env.privateKey)) {
+      logger.error('Generated private key has invalid format')
+      process.exit(1)
+    }
   }
   
   // Validate wallet address format (after generation) 
-  if (process.env.minorWallet && !/^[a-fA-F0-9]{64,130}$/.test(process.env.minorWallet)) {
-    logger.error('Generated minor wallet address has invalid format')
-    process.exit(1)
+  if (process.env.minorWallet) {
+    // Support Ed25519 (64 chars) and secp256k1 (66 or 130 chars)
+    if (!/^[a-fA-F0-9]{64,130}$/.test(process.env.minorWallet)) {
+      logger.error('Generated minor wallet address has invalid format')
+      process.exit(1)
+    }
   }
   
   logger.success('Generated keys validation passed')

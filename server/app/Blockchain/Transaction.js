@@ -1,14 +1,27 @@
 const crypto = require('crypto');
-const EC = require('elliptic').ec;
-const ec = new EC('secp256k1'); // Changed from ed25519 to match other files
+const CryptoManager = require('../../utils/cryptoManager');
 
 class Transaction {
-    constructor(fromAddress, toAddress, amount) {
+    constructor(fromAddress, toAddress, amount, curve = null) {
         this.fromAddress = fromAddress;
         this.toAddress = toAddress;
         this.amount = amount;
         this.timestamp = Date.now();
-        this.signature = ''
+        this.signature = '';
+        
+        // Auto-detect curve type from public key if not specified
+        this.curve = curve || this.detectCurveFromAddress(fromAddress);
+        this.cryptoManager = new CryptoManager();
+    }
+
+    /**
+     * Detect curve type from address format
+     * @param {string} address - The wallet address (public key)
+     * @returns {string} Detected curve type
+     */
+    detectCurveFromAddress(address) {
+        if (!address) return 'ed25519'; // Default for mining rewards
+        return this.cryptoManager.detectCurveType(address) || 'ed25519';
     }
 
      /**
@@ -21,39 +34,88 @@ class Transaction {
   }
 
   /**
-   * Signs a transaction with the given signingKey (which is an Elliptic keypair
-   * object that contains a private key and a public key). The signature is then stored inside the
-   * transaction object and later stored on the blockchain.
+   * Signs a transaction with the given signing key
+   * Supports both Ed25519 and secp256k1 keys
    *
-   * @param {string} keyPair
+   * @param {Object} keyData - { privateKey, publicKey, curve }
    */
-  signTransaction(keyPair) {
-    // You can only send a transaction from the wallet that is linked to your
-    // key. So here we check if the fromAddress matches your publicKey
-    if (keyPair.getPublic('hex') !== this.fromAddress) {
+  async signTransaction(keyData) {
+    // Extract key information
+    let privateKey, publicKey, curve;
+    
+    if (typeof keyData === 'object' && keyData.getPublic) {
+      // Legacy elliptic keyPair object support
+      publicKey = keyData.getPublic('hex');
+      privateKey = keyData.getPrivate('hex');
+      curve = 'secp256k1';
+    } else if (typeof keyData === 'object') {
+      // New format: { privateKey, publicKey, curve }
+      ({ privateKey, publicKey, curve } = keyData);
+    } else {
+      throw new Error('Invalid key data format');
+    }
+
+    // Validate that fromAddress matches the public key
+    if (publicKey !== this.fromAddress) {
       throw new Error('You cannot sign transactions for other wallets!');
     }
     
-    // Calculate the hash of this transaction, sign it with the key
-    // and store it inside the transaction obect
-    const hashTxs = this.calculateHash();
-    this.signature = keyPair.sign(hashTxs, 'base64').toDER('hex'); // Fixed signature format
+    // Update transaction curve if not set
+    if (!this.curve) {
+      this.curve = curve;
+    }
+    
+    // Calculate the hash and sign
+    const hashTx = this.calculateHash();
+    this.signature = await this.cryptoManager.signMessage(hashTx, privateKey, curve);
   }
 
-  isValid() {
-    //signature, from address, txs hash
+  /**
+   * Verify transaction signature
+   * @returns {boolean} True if signature is valid
+   */
+  async isValid() {
     // If the transaction doesn't have a from address we assume it's a mining reward
     if (this.fromAddress === null) return true;
 
-    // check signature
+    // Check signature exists
     if (!this.signature || this.signature.length === 0) {
       throw new Error('No signature in this transaction');
     }
 
-    const keyPair = ec.keyFromPublic(this.fromAddress, 'hex');
-    const hashTxs = this.calculateHash();
-    // Verify signature - fixed verification
-    return keyPair.verify(hashTxs, this.signature);
+    // Auto-detect curve if not set
+    if (!this.curve) {
+      this.curve = this.detectCurveFromAddress(this.fromAddress);
+    }
+
+    const hashTx = this.calculateHash();
+    
+    try {
+      return await this.cryptoManager.verifySignature(
+        hashTx, 
+        this.signature, 
+        this.fromAddress, 
+        this.curve
+      );
+    } catch (error) {
+      console.error('Transaction validation error:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Get transaction info including curve type
+   * @returns {Object} Transaction information
+   */
+  getInfo() {
+    return {
+      from: this.fromAddress,
+      to: this.toAddress,
+      amount: this.amount,
+      timestamp: this.timestamp,
+      curve: this.curve,
+      signature: this.signature ? this.signature.substring(0, 16) + '...' : 'unsigned'
+    };
   }
 }
 

@@ -5,7 +5,8 @@ const { enhancedTransactionValidation } = require('../middleware/enhancedValidat
 const { rateLimit } = require('../middleware/rateLimiter')
 
 const {
-    generateKeys
+    generateKeys,
+    getSupportedCurves
 } = require('../app/Controllers/WalletController')
 const {
     chainList,
@@ -44,6 +45,7 @@ router.get('/health', (req, res) => {
 
 // Standard endpoints
 router.get('/generateKeys', generateKeys)
+router.get('/curves', getSupportedCurves)
 router.get('/chainList', chainList)
 router.get('/chainValidation', chainValidation)
 router.get('/chainSync', chainSync)

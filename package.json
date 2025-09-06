@@ -8,12 +8,15 @@
     "serve": "nodemon server/server.js",
     "production": "node scripts/production-start.js",
     "security-check": "node scripts/securityCheck.js",
+    "test": "node test_validation.js",
+    "run-tests": "node scripts/runTests.js",
     "audit": "npm audit",
     "clean-logs": "rm -rf server/logs/*"
   },
   "author": "sazid",
   "license": "MIT",
   "dependencies": {
+    "@noble/ed25519": "^2.3.0",
     "axios": "^0.27.2",
     "colors": "^1.4.0",
     "dotenv": "^16.0.0",

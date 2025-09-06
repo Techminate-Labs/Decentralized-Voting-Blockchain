@@ -20,32 +20,42 @@ class SecureKeyManager {
   generateKeysIfNeeded() {
     const privateKeyFile = path.join(this.keyDir, '.private');
     const walletFile = path.join(this.keyDir, '.wallet');
+    const curveFile = path.join(this.keyDir, '.curve');
 
     if (!fs.existsSync(privateKeyFile) || !fs.existsSync(walletFile)) {
-      logger.info('Generating secure keys...');
+      logger.info('Generating secure Ed25519 keys...');
       
-      const EC = require('elliptic').ec;
-      const ec = new EC('secp256k1');
+      const CryptoManager = require('./cryptoManager');
+      const cryptoManager = new CryptoManager();
       
-      // Generate private key
-      const keyPair = ec.genKeyPair();
-      const privateKey = keyPair.getPrivate('hex');
-      const publicKey = keyPair.getPublic('hex');
+      // Generate Ed25519 keys (default)
+      cryptoManager.generateKeyPair('ed25519').then(keyPair => {
+        const { privateKey, publicKey, curve } = keyPair;
+        
+        // Encrypt before storing
+        const encrypted = this.encryptKey(privateKey);
+        
+        // Store with restricted permissions (if on Unix)
+        try {
+          fs.writeFileSync(privateKeyFile, encrypted);
+          fs.writeFileSync(walletFile, publicKey);
+          fs.writeFileSync(curveFile, curve);
+          logger.success('Secure Ed25519 keys generated and stored');
+        } catch (error) {
+          logger.error('Failed to write key files:', error.message);
+          throw new Error('Key file creation failed');
+        }
+      }).catch(error => {
+        logger.error('Key generation failed:', error.message);
+        throw new Error('Failed to generate keys');
+      });
       
-      // Encrypt before storing
-      const encrypted = this.encryptKey(privateKey);
-      
-      // Store with restricted permissions (if on Unix)
-      try {
-        fs.writeFileSync(privateKeyFile, encrypted);
-        fs.writeFileSync(walletFile, publicKey);
-        logger.success('Secure keys generated and stored');
-      } catch (error) {
-        logger.error('Failed to write key files:', error.message);
-        throw new Error('Key file creation failed');
-      }
-      
-      return { privateKey, publicKey };
+      // Return placeholder while keys are being generated
+      return { 
+        privateKey: 'generating...', 
+        publicKey: 'generating...',
+        curve: 'ed25519'
+      };
     }
     
     return this.loadKeys();
@@ -55,6 +65,7 @@ class SecureKeyManager {
     try {
       const privateKeyFile = path.join(this.keyDir, '.private');
       const walletFile = path.join(this.keyDir, '.wallet');
+      const curveFile = path.join(this.keyDir, '.curve');
       
       if (!fs.existsSync(privateKeyFile) || !fs.existsSync(walletFile)) {
         throw new Error('Key files not found');
@@ -62,11 +73,14 @@ class SecureKeyManager {
 
       const encryptedPrivate = fs.readFileSync(privateKeyFile, 'utf8');
       const publicKey = fs.readFileSync(walletFile, 'utf8');
+      const curve = fs.existsSync(curveFile) ? 
+        fs.readFileSync(curveFile, 'utf8').trim() : 
+        'secp256k1'; // Default for backward compatibility
       
       const privateKey = this.decryptKey(encryptedPrivate);
       
-      logger.info('Secure keys loaded from storage');
-      return { privateKey, publicKey };
+      logger.info(`Secure ${curve} keys loaded from storage`);
+      return { privateKey, publicKey, curve };
     } catch (error) {
       logger.error('Failed to load secure keys:', error.message);
       throw new Error('Key loading failed: ' + error.message);
